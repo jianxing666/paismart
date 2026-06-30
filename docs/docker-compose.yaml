@@ -51,66 +51,25 @@ services:
       retries: 5
     command: redis-server --bind 0.0.0.0 --port 6379 --requirepass PaiSmart2025 --appendonly yes
 
-  kafka:
-    image: bitnamilegacy/kafka:latest
-    container_name: kafka       # 如果需要按照新的命名规则，请改为 pai_smart_kafka
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
     restart: always
     ports:
-      - "9092:9092"
-      - "9093:9093"
+      - "5672:5672"       # AMQP 协议端口
+      - "15672:15672"     # 管理控制台 Web UI
     environment:
-      - KAFKA_CFG_NODE_ID=0
-      - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@localhost:9093
-
-      # 监听器配置
-      - KAFKA_CFG_LISTENERS=CONTROLLER://:9093,PLAINTEXT://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
     volumes:
-      - kafka-data:/bitnami/kafka
-    command:
-      - sh
-      - -c
-      - |
-        # 启动 Kafka（使用 bitnami 完整初始化流程）
-        /opt/bitnami/scripts/kafka/run.sh &
-
-        # 等待 Kafka 完全启动（更可靠的检测方式）
-        echo "Waiting for Kafka to start..."
-        while ! kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null; do
-          sleep 2
-        done
-
-        # 创建第一个主题（忽略已存在的错误）
-        echo "Creating topic: file-processing"
-        kafka-topics.sh --create \
-          --bootstrap-server localhost:9092 \
-          --replication-factor 1 \
-          --partitions 1 \
-          --topic file-processing 2>/dev/null || true
-
-        # 创建第二个主题 vectorization
-        echo "Creating topic: vectorization"
-        kafka-topics.sh --create \
-          --bootstrap-server localhost:9092 \
-          --replication-factor 1 \
-          --partitions 1 \
-          --topic vectorization 2>/dev/null || true
-        # 保持容器运行
-        tail -f /dev/null
+      - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1",
-        ]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
+    # Exchange / Queue / Binding 由 Spring AMQP 启动时自动声明，无需手动创建
 
   es:
     image: elasticsearch:8.10.4
@@ -156,5 +115,5 @@ volumes:
   redis-data:
   mysql-data:
   minio-data:
-  kafka-data:
+  rabbitmq-data:
   es-data:

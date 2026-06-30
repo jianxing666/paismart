@@ -144,10 +144,10 @@
             <artifactId>commons-io</artifactId>
             <version>2.14.0</version>
         </dependency>
+        <!-- RabbitMQ 替代 Kafka 作为消息队列 -->
         <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
-            <version>3.2.1</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
         <!-- Elasticsearch Java Client -->

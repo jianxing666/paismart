@@ -4,11 +4,11 @@ server:
 spring:
   # 基础设施连接统一从 `.env` / 环境变量读取，避免把敏感信息写死在仓库。
   jackson:
-    time-zone: ${APP_TIMEZONE:Asia/Shanghai}
+    time-zone: ${APP_TIMEZONE:UTC}
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/PaiSmart?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3307/PaiSmart?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
     username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+    password: ${SPRING_DATASOURCE_PASSWORD:PaiSmart2025}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
@@ -17,46 +17,30 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
-        jdbc:
-          time_zone: ${APP_TIMEZONE:Asia/Shanghai}
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      password: ${SPRING_DATA_REDIS_PASSWORD:PaiSmart2025}
   servlet:
     multipart:
       enabled: true
       max-file-size: 50MB
       max-request-size: 100MB
-  kafka:
-    enabled: true
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
-      retries: 3
-      enable-idempotence: true
-      transactional-id-prefix: file-upload-tx-
-      properties:
-        client.dns.lookup: use_all_dns_ips
-    consumer:
-      group-id: file-processing-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
-        client.dns.lookup: use_all_dns_ips
-    topic:
-      # 文件上传完成后进入该主题，消费者会顺序完成“解析 + 向量化”
-      file-processing: file-processing-topic1
-      # 消费失败并重试耗尽后进入死信主题
-      dlt: file-processing-dlt
-      # 启动时自动建 topic 的默认参数，本地单机通常保持 1/1
-      partitions: ${SPRING_KAFKA_TOPIC_PARTITIONS:1}
-      replication-factor: ${SPRING_KAFKA_TOPIC_REPLICATION_FACTOR:1}
+  rabbitmq:
+    # RabbitMQ 替代 Kafka 作为消息队列
+    host: ${SPRING_RABBITMQ_HOST:127.0.0.1}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
+    # 可靠投递：发布者确认 + 返回回调
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        # 每次只预取 1 条消息，保证顺序处理（对标 Kafka partition 内有序）
+        prefetch: 1
   webflux:
     client:
       max-in-memory-size: 16MB
@@ -65,22 +49,22 @@ spring:
 
 minio:
   # MinIO 用于存储原始文件，对象 URL 会进入 Kafka 处理链路
-  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-  accessKey: ${MINIO_ACCESS_KEY:}
-  secretKey: ${MINIO_SECRET_KEY:}
+  endpoint: ${MINIO_ENDPOINT:http://localhost:19000}
+  accessKey: ${MINIO_ACCESS_KEY:admin}
+  secretKey: ${MINIO_SECRET_KEY:PaiSmart2025}
   bucketName: ${MINIO_BUCKET_NAME:uploads}
-  publicUrl: ${MINIO_PUBLIC_URL:http://localhost:9000}
+  publicUrl: ${MINIO_PUBLIC_URL:http://localhost:19000}
 
 jwt:
   # 必须是 Base64 编码字符串
-  secret-key: ${JWT_SECRET_KEY:}
+  secret-key: ${JWT_SECRET_KEY:PXrQbuCwXwOZzkML/Vm2S5rSwt1iybvmKtGDzVEu+Hc=}
 
 admin:
   bootstrap:
     # 仅用于首次引导创建管理员账号，创建成功后应关闭
-    enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
-    username: ${ADMIN_BOOTSTRAP_USERNAME:}
-    password: ${ADMIN_BOOTSTRAP_PASSWORD:}
+    enabled: ${ADMIN_BOOTSTRAP_ENABLED:true}
+    username: ${ADMIN_BOOTSTRAP_USERNAME:admin}
+    password: ${ADMIN_BOOTSTRAP_PASSWORD:PaiSmart2025}
     primary-org: ${ADMIN_BOOTSTRAP_PRIMARY_ORG:default}
     org-tags: ${ADMIN_BOOTSTRAP_ORG_TAGS:default,admin}
 
@@ -90,8 +74,19 @@ app:
       # OPEN: 开放注册
       # INVITE_ONLY: 必须邀请码
       # CLOSED: 完全关闭注册
-      mode: ${APP_AUTH_REGISTRATION_MODE:INVITE_ONLY}
+      mode: ${APP_AUTH_REGISTRATION_MODE:OPEN}
       invite-required: ${APP_AUTH_INVITE_REQUIRED:true}
+  rabbitmq:
+    queue:
+      # 文件上传完成后进入该队列，消费者会顺序完成"解析 + 向量化"
+      file-processing: file-processing-queue
+      # 消费失败并重试耗尽后进入死信队列
+      file-processing-dlq: file-processing-dlq
+    exchange:
+      file-processing: file-processing-exchange
+      file-processing-dlx: file-processing-dlx
+    routing-key:
+      file-processing: file-processing
 
 rate-limit:
   # Redis 限流，用于保护登录、注册、聊天、LLM 和向量接口
@@ -168,7 +163,7 @@ aliyun:
 
 knowledge:
   bootstrap:
-    enabled: ${KNOWLEDGE_BOOTSTRAP_ENABLED:true}
+    enabled: ${KNOWLEDGE_BOOTSTRAP_ENABLED:false}
     path: ${KNOWLEDGE_BOOTSTRAP_PATH:docs/paismart.pdf}
     org-tag: ${KNOWLEDGE_BOOTSTRAP_ORG_TAG:default}
     public: ${KNOWLEDGE_BOOTSTRAP_PUBLIC:true}
@@ -179,9 +174,9 @@ elasticsearch:
   # 生产环境必须改为 trust-all=false。
   host: ${ELASTICSEARCH_HOST:localhost}
   port: ${ELASTICSEARCH_PORT:9200}
-  scheme: ${ELASTICSEARCH_SCHEME:https}
+  scheme: ${ELASTICSEARCH_SCHEME:http}
   username: ${ELASTICSEARCH_USERNAME:elastic}
-  password: ${ELASTICSEARCH_PASSWORD:}
+  password: ${ELASTICSEARCH_PASSWORD:PaiSmart2025}
   insecure-trust-all-certificates: ${ELASTICSEARCH_INSECURE_TRUST_ALL_CERTIFICATES:true}
   init:
     enabled: ${ELASTICSEARCH_INIT_ENABLE:true}
@@ -209,13 +204,13 @@ deepseek:
     # LLM 提供方配置
     url: ${DEEPSEEK_API_URL:https://api.deepseek.com/v1}
     model: ${DEEPSEEK_API_MODEL:deepseek-chat}
-    key: ${DEEPSEEK_API_KEY:}
+    key: ${DEEPSEEK_API_KEY:your-deepseek-api-key}
 
 embedding:
   api:
     # 向量服务配置
     url: ${EMBEDDING_API_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
-    key: ${EMBEDDING_API_KEY:}
+    key: ${EMBEDDING_API_KEY:your-embedding-api-key}
     model: ${EMBEDDING_API_MODEL:text-embedding-v4}
     batch-size: ${EMBEDDING_BATCH_SIZE:10}
     dimension: ${EMBEDDING_DIMENSION:2048}

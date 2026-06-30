@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 文件处理任务类，用于Kafka消息传递
+ * 文件处理任务类，用于 RabbitMQ 消息传递
  */
 @Data
 @AllArgsConstructor

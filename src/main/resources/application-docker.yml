@@ -4,9 +4,9 @@ server:
 spring:
   # docker profile 用于容器化启动；基础设施地址建议统一走 `.env`
   jackson:
-    time-zone: ${APP_TIMEZONE:Asia/Shanghai}
+    time-zone: ${APP_TIMEZONE:UTC}
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/PaiSmart?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/PaiSmart?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
     username: ${SPRING_DATASOURCE_USERNAME:root}
     password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -17,8 +17,6 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
-        jdbc:
-          time_zone: ${APP_TIMEZONE:Asia/Shanghai}
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -29,32 +27,18 @@ spring:
       enabled: true
       max-file-size: 50MB
       max-request-size: 100MB
-  kafka:
-    enabled: true
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
-      retries: 3
-      enable-idempotence: true
-      transactional-id-prefix: file-upload-tx-
-      properties:
-        client.dns.lookup: use_all_dns_ips
-    consumer:
-      group-id: file-processing-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
-        client.dns.lookup: use_all_dns_ips
-    topic:
-      file-processing: file-processing-topic1
-      dlt: file-processing-dlt
-      # 单节点 Docker 环境通常保持 1/1 即可
-      partitions: ${SPRING_KAFKA_TOPIC_PARTITIONS:1}
-      replication-factor: ${SPRING_KAFKA_TOPIC_REPLICATION_FACTOR:1}
+  rabbitmq:
+    # RabbitMQ 替代 Kafka 作为消息队列
+    host: ${SPRING_RABBITMQ_HOST:127.0.0.1}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        prefetch: 1
   webflux:
     client:
       max-in-memory-size: 16MB

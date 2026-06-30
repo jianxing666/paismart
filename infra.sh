@@ -14,9 +14,10 @@ MINIO_API_PORT="9000"
 MINIO_CONSOLE_PORT="9001"
 MINIO_CMD="./minio server data/ --console-address :${MINIO_CONSOLE_PORT}"
 
-KAFKA_DIR="/Users/itwanger/Downloads/kafka/kafka_2.13-3.9.0"
-KAFKA_PORT="9092"
-KAFKA_CMD="./start-kafka.sh"
+RABBITMQ_PORT="5672"
+RABBITMQ_DIR="/tmp"
+RABBITMQ_MGMT_PORT="15672"
+RABBITMQ_CMD="rabbitmq-server"
 
 ELASTICSEARCH_DIR="/Users/itwanger/Downloads/elasticsearch-8.10.0"
 ELASTICSEARCH_PORT="9200"
@@ -25,12 +26,12 @@ ELASTICSEARCH_CMD='ES_JAVA_OPTS="-Xms500M -Xmx500M" ./bin/elasticsearch'
 
 LITEPARSE_CLI_PACKAGE="${LITEPARSE_CLI_PACKAGE:-@llamaindex/liteparse}"
 
-SERVICES=("minio" "kafka" "elasticsearch")
+SERVICES=("minio" "rabbitmq" "elasticsearch")
 
 service_dir() {
     case "$1" in
         minio) echo "${MINIO_DIR}" ;;
-        kafka) echo "${KAFKA_DIR}" ;;
+        rabbitmq) echo "${RABBITMQ_DIR}" ;;
         elasticsearch) echo "${ELASTICSEARCH_DIR}" ;;
         *) return 1 ;;
     esac
@@ -39,7 +40,7 @@ service_dir() {
 service_cmd() {
     case "$1" in
         minio) echo "${MINIO_CMD}" ;;
-        kafka) echo "${KAFKA_CMD}" ;;
+        rabbitmq) echo "${RABBITMQ_CMD}" ;;
         elasticsearch) echo "${ELASTICSEARCH_CMD}" ;;
         *) return 1 ;;
     esac
@@ -56,7 +57,7 @@ log_file() {
 service_port() {
     case "$1" in
         minio) echo "${MINIO_API_PORT}" ;;
-        kafka) echo "${KAFKA_PORT}" ;;
+        rabbitmq) echo "${RABBITMQ_PORT}" ;;
         elasticsearch) echo "${ELASTICSEARCH_PORT}" ;;
         *) return 1 ;;
     esac
@@ -72,7 +73,7 @@ service_aux_port() {
 service_pattern() {
     case "$1" in
         minio) echo 'minio server data/' ;;
-        kafka) echo 'kafka\.Kafka|start-kafka\.sh' ;;
+        rabbitmq) echo 'rabbitmq-server|beam\.smp' ;;
         elasticsearch) echo 'org\.elasticsearch\.bootstrap\.Elasticsearch|org\.elasticsearch\.server|jdk\.module\.main=org\.elasticsearch\.server|elasticsearch-8\.10\.0' ;;
         *) return 1 ;;
     esac
@@ -299,8 +300,8 @@ http_health_check() {
         elasticsearch)
             elastic_health_check || return 1
             ;;
-        kafka)
-            port_is_listening "${KAFKA_PORT}" || return 1
+        rabbitmq)
+            port_is_listening "${RABBITMQ_PORT}" || return 1
             ;;
         *)
             return 1
@@ -556,7 +557,8 @@ show_urls() {
     cat <<EOF
 MinIO API:        http://127.0.0.1:${MINIO_API_PORT}
 MinIO Console:    http://127.0.0.1:${MINIO_CONSOLE_PORT}
-Kafka Broker:     127.0.0.1:${KAFKA_PORT}
+RabbitMQ AMQP:    127.0.0.1:${RABBITMQ_PORT}
+RabbitMQ Mgmt:     http://127.0.0.1:${RABBITMQ_MGMT_PORT}
 Elasticsearch:    ${ELASTICSEARCH_SCHEME}://127.0.0.1:${ELASTICSEARCH_PORT}
 EOF
 }
@@ -623,7 +625,7 @@ show_help() {
 
 可选服务:
   minio
-  kafka
+  rabbitmq
   elasticsearch
 
 可安装组件:

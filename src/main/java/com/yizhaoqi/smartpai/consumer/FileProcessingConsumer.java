@@ -1,14 +1,14 @@
 package com.yizhaoqi.smartpai.consumer;
 
-import com.yizhaoqi.smartpai.config.KafkaConfig;
+import com.yizhaoqi.smartpai.config.RabbitMQConfig;
 import com.yizhaoqi.smartpai.model.FileProcessingTask;
 import com.yizhaoqi.smartpai.service.DocumentService;
 import com.yizhaoqi.smartpai.service.ParseService;
 import com.yizhaoqi.smartpai.service.VectorizationService;
 import io.minio.errors.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -25,7 +25,7 @@ public class FileProcessingConsumer {
     private final VectorizationService vectorizationService;
     private final DocumentService documentService;
     @Autowired
-    private KafkaConfig kafkaConfig;
+    private RabbitMQConfig rabbitMQConfig;
 
 
     public FileProcessingConsumer(
@@ -38,7 +38,7 @@ public class FileProcessingConsumer {
         this.documentService = documentService;
     }
 
-    @KafkaListener(topics = "#{kafkaConfig.getFileProcessingTopic()}", groupId = "#{kafkaConfig.getFileProcessingGroupId()}")
+    @RabbitListener(queues = "#{rabbitMQConfig.getFileProcessingQueue()}")
     public void processTask(FileProcessingTask task) {
         log.info("Received task: {}", task);
         log.info("文件权限信息: userId={}, orgTag={}, isPublic={}", 

@@ -16,16 +16,23 @@ spring:
       host: localhost
       port: 6379
       password:
-  kafka:
-    bootstrap-servers: localhost:9092
-    consumer:
-      group-id: file-processing-group
-      auto-offset-reset: earliest
-      properties:
-        spring.json.trusted.packages: "*"
-    topic:
-      file-processing: file-processing-topic1
-      dlt: file-processing-dlt
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+
+app:
+  rabbitmq:
+    queue:
+      file-processing: file-processing-queue
+      file-processing-dlq: file-processing-dlq
+    exchange:
+      file-processing: file-processing-exchange
+      file-processing-dlx: file-processing-dlx
+    routing-key:
+      file-processing: file-processing
 
 admin:
   bootstrap:

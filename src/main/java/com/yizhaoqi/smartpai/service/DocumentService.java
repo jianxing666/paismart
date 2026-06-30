@@ -1,6 +1,6 @@
 package com.yizhaoqi.smartpai.service;
 
-import com.yizhaoqi.smartpai.config.KafkaConfig;
+import com.yizhaoqi.smartpai.config.RabbitMQConfig;
 import com.yizhaoqi.smartpai.model.FileProcessingTask;
 import com.yizhaoqi.smartpai.model.FileUpload;
 import com.yizhaoqi.smartpai.model.User;
@@ -17,8 +17,8 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.tika.exception.TikaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -91,10 +91,10 @@ public class DocumentService {
     private VectorizationService vectorizationService;
 
     @Autowired
-    private KafkaTemplate<String, Object> kafkaTemplate;
+    private RabbitTemplate rabbitTemplate;
 
     @Autowired
-    private KafkaConfig kafkaConfig;
+    private RabbitMQConfig rabbitMQConfig;
 
     /**
      * 删除文档及其相关数据
@@ -256,10 +256,7 @@ public class DocumentService {
                 requesterId
         );
 
-        kafkaTemplate.executeInTransaction(kt -> {
-            kt.send(kafkaConfig.getFileProcessingTopic(), task);
-            return true;
-        });
+        rabbitTemplate.convertAndSend(rabbitMQConfig.getFileProcessingExchange(), rabbitMQConfig.getFileProcessingRoutingKey(), task);
 
         logger.info("已发送异步向量化重试任务: fileMd5={}, requesterId={}", fileMd5, requesterId);
         return fileUpload;

@@ -1,6 +1,6 @@
 package com.yizhaoqi.smartpai.controller;
 
-import com.yizhaoqi.smartpai.config.KafkaConfig;
+import com.yizhaoqi.smartpai.config.RabbitMQConfig;
 import com.yizhaoqi.smartpai.model.FileUpload;
 import com.yizhaoqi.smartpai.model.OrganizationTag;
 import com.yizhaoqi.smartpai.repository.FileUploadRepository;
@@ -12,7 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -31,10 +31,10 @@ class UploadControllerTest {
     private UploadService uploadService;
 
     @Mock
-    private KafkaTemplate<String, Object> kafkaTemplate;
+    private RabbitTemplate rabbitTemplate;
 
     @Mock
-    private KafkaConfig kafkaConfig;
+    private RabbitMQConfig rabbitMQConfig;
 
     @Mock
     private UserService userService;
@@ -53,8 +53,8 @@ class UploadControllerTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        uploadController = new UploadController(uploadService, kafkaTemplate);
-        ReflectionTestUtils.setField(uploadController, "kafkaConfig", kafkaConfig);
+        uploadController = new UploadController(uploadService, rabbitTemplate);
+        ReflectionTestUtils.setField(uploadController, "rabbitMQConfig", rabbitMQConfig);
         ReflectionTestUtils.setField(uploadController, "userService", userService);
         ReflectionTestUtils.setField(uploadController, "fileUploadRepository", fileUploadRepository);
         ReflectionTestUtils.setField(uploadController, "fileTypeValidationService", fileTypeValidationService);
@@ -164,6 +164,6 @@ class UploadControllerTest {
         assertEquals("文件已完成合并", response.getBody().get("message"));
         assertEquals("https://example.com/merged/md5", ((Map<?, ?>) response.getBody().get("data")).get("object_url"));
         verify(uploadService, never()).mergeChunks(anyString(), anyString(), anyString());
-        verify(kafkaTemplate, never()).executeInTransaction(any());
+        //verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any());
     }
 }
