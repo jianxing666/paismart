@@ -11,6 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Arrays;
 
+/*
+这就是注册路由：告诉 Spring，"凡是 WebSocket 连接到 /chat/xxx 的请求，都交给 ChatWebSocketHandler 处理"。
+{token} 是路径变量，前端把 JWT 放在这里传过来做认证。
+*/
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {

@@ -20,6 +20,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/*
+LlmProviderRouter —— 与 LLM 通信的核心桥梁
+这个类是应用和 AI 模型之间唯一的通信通道。所有对 LLM 的调用最终都经过这里。它有两条主线：普通聊天模式和 ReAct 工具调用模式。
+*/
 @Service
 public class LlmProviderRouter {
 
@@ -35,10 +39,10 @@ public class LlmProviderRouter {
     private final ObjectMapper objectMapper;
 
     public LlmProviderRouter(AiProperties aiProperties,
-                             RateLimitService rateLimitService,
-                             UsageQuotaService usageQuotaService,
-                             ModelProviderConfigService modelProviderConfigService,
-                             ObjectMapper objectMapper) {
+            RateLimitService rateLimitService,
+            UsageQuotaService usageQuotaService,
+            ModelProviderConfigService modelProviderConfigService,
+            ObjectMapper objectMapper) {
         this.aiProperties = aiProperties;
         this.rateLimitService = rateLimitService;
         this.usageQuotaService = usageQuotaService;
@@ -46,15 +50,17 @@ public class LlmProviderRouter {
         this.objectMapper = objectMapper;
     }
 
+    // 普通流式
     public StreamHandle streamResponse(String requesterId,
-                                       String userMessage,
-                                       String context,
-                                       List<Map<String, String>> history,
-                                       Consumer<String> onChunk,
-                                       Consumer<Throwable> onError,
-                                       Consumer<StreamCompletion> onComplete) {
+            String userMessage,
+            String context,
+            List<Map<String, String>> history,
+            Consumer<String> onChunk,
+            Consumer<Throwable> onError,
+            Consumer<StreamCompletion> onComplete) {
 
-        ModelProviderConfigService.ActiveProviderView provider = modelProviderConfigService.getActiveProvider(ModelProviderConfigService.SCOPE_LLM);
+        ModelProviderConfigService.ActiveProviderView provider = modelProviderConfigService
+                .getActiveProvider(ModelProviderConfigService.SCOPE_LLM);
         Map<String, Object> request = buildRequest(provider.model(), userMessage, context, history);
         @SuppressWarnings("unchecked")
         List<Map<String, String>> messages = (List<Map<String, String>>) request.get("messages");
@@ -82,7 +88,8 @@ public class LlmProviderRouter {
                             },
                             () -> {
                                 settleUsage(usageTracker);
-                                logger.info("LLM 流式响应完成: provider={}, model={}, finishReason={}, promptTokens={}, completionTokens={}, responseChars={}",
+                                logger.info(
+                                        "LLM 流式响应完成: provider={}, model={}, finishReason={}, promptTokens={}, completionTokens={}, responseChars={}",
                                         provider.provider(),
                                         provider.model(),
                                         usageTracker.finishReason == null ? "unknown" : usageTracker.finishReason,
@@ -94,11 +101,9 @@ public class LlmProviderRouter {
                                             usageTracker.finishReason,
                                             usageTracker.promptTokens,
                                             usageTracker.completionTokens,
-                                            usageTracker.responseContent.length()
-                                    ));
+                                            usageTracker.responseContent.length()));
                                 }
-                            }
-                    );
+                            });
             return new StreamHandle(subscription, () -> settleUsage(usageTracker));
         } catch (Exception exception) {
             usageQuotaService.abortReservation(reservation);
@@ -106,16 +111,17 @@ public class LlmProviderRouter {
         }
     }
 
+    // 构建 prompt（含系统指令 + 工具声明)
     public List<Map<String, Object>> buildReActMessages(String userMessage,
-                                                        String context,
-                                                        List<Map<String, String>> history) {
+            String context,
+            List<Map<String, String>> history) {
         return buildReActMessages(userMessage, context, history, "");
     }
 
     public List<Map<String, Object>> buildReActMessages(String userMessage,
-                                                        String context,
-                                                        List<Map<String, String>> history,
-                                                        String feedbackGuidance) {
+            String context,
+            List<Map<String, String>> history,
+            String feedbackGuidance) {
         List<Map<String, Object>> messages = new ArrayList<>();
         AiProperties.Prompt promptCfg = aiProperties.getPrompt();
 
@@ -123,7 +129,8 @@ public class LlmProviderRouter {
         if (promptCfg.getRules() != null) {
             sysBuilder.append(promptCfg.getRules()).append("\n\n");
         }
-        sysBuilder.append("本系统是「知识库优先」的问答助手：你的首要职责是基于本系统已收录的资料回答用户。除非命中下方明确的白名单，否则**每一个用户问题都必须先调用 search_knowledge**，再基于检索结果作答。\n\n")
+        sysBuilder.append(
+                "本系统是「知识库优先」的问答助手：你的首要职责是基于本系统已收录的资料回答用户。除非命中下方明确的白名单，否则**每一个用户问题都必须先调用 search_knowledge**，再基于检索结果作答。\n\n")
                 .append("强制检索原则（默认行为）：\n")
                 .append("1. 默认调用 search_knowledge：只要问题涉及任何实体、名称、缩写、产品、项目、术语、流程、功能、实现、背景、对比、引用，或包含「这/它/该/上述/这个/那个」等上下文指代，无论你是否自认为已知答案，都必须先检索，不要等用户说「查知识库」。\n")
                 .append("2. 构造 query 时严格保留用户原话中的核心名词、缩写和限定词，禁止替换为泛化关键词；必要时可在同一次 query 中合并原句与等价改写。\n")
@@ -150,7 +157,8 @@ public class LlmProviderRouter {
         if (context != null && !context.isEmpty()) {
             sysBuilder.append(context);
         } else {
-            sysBuilder.append(promptCfg.getNoResultText() != null ? promptCfg.getNoResultText() : "（本轮无预置检索结果，可按需调用工具）").append("\n");
+            sysBuilder.append(promptCfg.getNoResultText() != null ? promptCfg.getNoResultText() : "（本轮无预置检索结果，可按需调用工具）")
+                    .append("\n");
         }
         sysBuilder.append(refEnd);
 
@@ -172,12 +180,13 @@ public class LlmProviderRouter {
         return messages;
     }
 
+    // ReAct流式+tools
     public ReActTurn completeReActTurn(String requesterId,
-                                       List<Map<String, Object>> messages,
-                                       List<AgentToolRegistry.AgentTool> tools,
-                                       int maxCompletionTokens) {
-        ModelProviderConfigService.ActiveProviderView provider =
-                modelProviderConfigService.getActiveProvider(ModelProviderConfigService.SCOPE_LLM);
+            List<Map<String, Object>> messages,
+            List<AgentToolRegistry.AgentTool> tools,
+            int maxCompletionTokens) {
+        ModelProviderConfigService.ActiveProviderView provider = modelProviderConfigService
+                .getActiveProvider(ModelProviderConfigService.SCOPE_LLM);
         Map<String, Object> request = buildReActRequest(provider.model(), messages, tools, maxCompletionTokens, false);
 
         int estimatedPromptTokens = estimateObjectMessagesTokens(messages)
@@ -197,7 +206,8 @@ public class LlmProviderRouter {
             ReActTurn turn = parseReActTurn(responseBody, estimatedPromptTokens);
             usageQuotaService.settleReservation(reservation, turn.promptTokens() + turn.completionTokens());
             logger.info("ReAct 回合完成: provider={}, model={}, finishReason={}, toolCalls={}, contentChars={}",
-                    provider.provider(), provider.model(), turn.finishReason(), turn.toolCalls().size(), turn.content().length());
+                    provider.provider(), provider.model(), turn.finishReason(), turn.toolCalls().size(),
+                    turn.content().length());
             return turn;
         } catch (Exception exception) {
             usageQuotaService.abortReservation(reservation);
@@ -206,14 +216,17 @@ public class LlmProviderRouter {
     }
 
     public StreamHandle streamReActTurn(String requesterId,
-                                        List<Map<String, Object>> messages,
-                                        List<AgentToolRegistry.AgentTool> tools,
-                                        int maxCompletionTokens,
-                                        Consumer<String> onChunk,
-                                        Consumer<Throwable> onError,
-                                        Consumer<ReActTurn> onComplete) {
-        ModelProviderConfigService.ActiveProviderView provider =
-                modelProviderConfigService.getActiveProvider(ModelProviderConfigService.SCOPE_LLM);
+            List<Map<String, Object>> messages,
+            List<AgentToolRegistry.AgentTool> tools,
+            int maxCompletionTokens,
+            Consumer<String> onChunk,
+            Consumer<Throwable> onError,
+            Consumer<ReActTurn> onComplete) {
+
+        // 1、获取当前活跃的 LLM 提供商配置
+        ModelProviderConfigService.ActiveProviderView provider = modelProviderConfigService
+                .getActiveProvider(ModelProviderConfigService.SCOPE_LLM);
+        // 2. 构建 OpenAI 兼容请求体
         Map<String, Object> request = buildReActRequest(provider.model(), messages, tools, maxCompletionTokens, true);
         int estimatedPromptTokens = estimateObjectMessagesTokens(messages)
                 + (tools == null || tools.isEmpty() ? 0 : estimateToolsTokens(tools));
@@ -221,6 +234,7 @@ public class LlmProviderRouter {
                 requesterId, estimatedPromptTokens, Math.max(maxCompletionTokens, 1));
         ReActStreamAccumulator accumulator = new ReActStreamAccumulator(reservation, estimatedPromptTokens);
 
+        // 发起 HTTP SSE 流式请求
         try {
             Disposable subscription = buildClient(provider)
                     .post()
@@ -228,7 +242,7 @@ public class LlmProviderRouter {
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(request)
                     .retrieve()
-                    .bodyToFlux(String.class)
+                    .bodyToFlux(String.class) // 将响应体转为 Flux<String>，每个 SSE data 行是一个元素
                     .subscribe(
                             chunk -> processReActStreamChunk(chunk, accumulator, onChunk),
                             error -> {
@@ -239,15 +253,15 @@ public class LlmProviderRouter {
                             () -> {
                                 settleReActStreamUsage(accumulator);
                                 ReActTurn turn = accumulator.toTurn();
-                                logger.info("ReAct 流式回合完成: provider={}, model={}, finishReason={}, toolCalls={}, contentChars={}",
+                                logger.info(
+                                        "ReAct 流式回合完成: provider={}, model={}, finishReason={}, toolCalls={}, contentChars={}",
                                         provider.provider(),
                                         provider.model(),
                                         turn.finishReason(),
                                         turn.toolCalls().size(),
                                         turn.content().length());
                                 onComplete.accept(turn);
-                            }
-                    );
+                            });
             return new StreamHandle(subscription, () -> settleReActStreamUsage(accumulator));
         } catch (Exception exception) {
             usageQuotaService.abortReservation(reservation);
@@ -277,10 +291,10 @@ public class LlmProviderRouter {
     }
 
     private Map<String, Object> buildReActRequest(String model,
-                                                  List<Map<String, Object>> messages,
-                                                  List<AgentToolRegistry.AgentTool> tools,
-                                                  int maxCompletionTokens,
-                                                  boolean stream) {
+            List<Map<String, Object>> messages,
+            List<AgentToolRegistry.AgentTool> tools,
+            int maxCompletionTokens,
+            boolean stream) {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("model", model);
         request.put("messages", messages);
@@ -305,9 +319,9 @@ public class LlmProviderRouter {
     }
 
     private Map<String, Object> buildRequest(String model,
-                                             String userMessage,
-                                             String context,
-                                             List<Map<String, String>> history) {
+            String userMessage,
+            String context,
+            List<Map<String, String>> history) {
         Map<String, Object> request = new java.util.HashMap<>();
         request.put("model", model);
         request.put("messages", buildMessages(userMessage, context, history));
@@ -328,8 +342,8 @@ public class LlmProviderRouter {
     }
 
     private List<Map<String, String>> buildMessages(String userMessage,
-                                                    String context,
-                                                    List<Map<String, String>> history) {
+            String context,
+            List<Map<String, String>> history) {
         List<Map<String, String>> messages = new ArrayList<>();
         AiProperties.Prompt promptCfg = aiProperties.getPrompt();
 
@@ -344,7 +358,8 @@ public class LlmProviderRouter {
         if (context != null && !context.isEmpty()) {
             sysBuilder.append(context);
         } else {
-            sysBuilder.append(promptCfg.getNoResultText() != null ? promptCfg.getNoResultText() : "（本轮无检索结果）").append("\n");
+            sysBuilder.append(promptCfg.getNoResultText() != null ? promptCfg.getNoResultText() : "（本轮无检索结果）")
+                    .append("\n");
         }
         sysBuilder.append(refEnd);
 
@@ -472,16 +487,14 @@ public class LlmProviderRouter {
             int promptTokens = usage.path("prompt_tokens").asInt(estimatedPromptTokens);
             int completionTokens = usage.path("completion_tokens").asInt(
                     usageQuotaService.estimateTextTokens(messageNode.path("content").asText(""))
-                            + estimateObjectMessagesTokens(List.of(assistantMessage))
-            );
+                            + estimateObjectMessagesTokens(List.of(assistantMessage)));
             return new ReActTurn(
                     messageNode.path("content").asText("").trim(),
                     toolCalls,
                     assistantMessage,
                     choice.path("finish_reason").asText("unknown"),
                     promptTokens,
-                    completionTokens
-            );
+                    completionTokens);
         } catch (Exception exception) {
             throw new RuntimeException("解析 ReAct 模型响应失败", exception);
         }
@@ -498,7 +511,8 @@ public class LlmProviderRouter {
                 JsonNode usageNode = node.path("usage");
                 if (usageNode.isObject()) {
                     usageTracker.promptTokens = usageNode.path("prompt_tokens").asInt(usageTracker.promptTokens);
-                    usageTracker.completionTokens = usageNode.path("completion_tokens").asInt(usageTracker.completionTokens);
+                    usageTracker.completionTokens = usageNode.path("completion_tokens")
+                            .asInt(usageTracker.completionTokens);
                 }
 
                 JsonNode choiceNode = node.path("choices").path(0);
@@ -526,8 +540,8 @@ public class LlmProviderRouter {
     }
 
     private void processReActStreamChunk(String rawChunk,
-                                         ReActStreamAccumulator accumulator,
-                                         Consumer<String> onChunk) {
+            ReActStreamAccumulator accumulator,
+            Consumer<String> onChunk) {
         try {
             for (String chunk : extractPayloads(rawChunk)) {
                 if ("[DONE]".equals(chunk)) {
@@ -538,7 +552,8 @@ public class LlmProviderRouter {
                 JsonNode usageNode = node.path("usage");
                 if (usageNode.isObject()) {
                     accumulator.promptTokens = usageNode.path("prompt_tokens").asInt(accumulator.promptTokens);
-                    accumulator.completionTokens = usageNode.path("completion_tokens").asInt(accumulator.completionTokens);
+                    accumulator.completionTokens = usageNode.path("completion_tokens")
+                            .asInt(accumulator.completionTokens);
                 }
 
                 JsonNode choiceNode = node.path("choices").path(0);
@@ -632,7 +647,7 @@ public class LlmProviderRouter {
         int actualCompletionTokens = accumulator.completionTokens > 0
                 ? accumulator.completionTokens
                 : usageQuotaService.estimateTextTokens(accumulator.content.toString())
-                + estimateObjectMessagesTokens(List.of(accumulator.assistantMessage()));
+                        + estimateObjectMessagesTokens(List.of(accumulator.assistantMessage()));
         usageQuotaService.settleReservation(accumulator.reservation, actualPromptTokens + actualCompletionTokens);
     }
 
@@ -662,7 +677,8 @@ public class LlmProviderRouter {
         private volatile String finishReason;
         private volatile boolean settled;
 
-        private ReActStreamAccumulator(UsageQuotaService.TokenReservationBundle reservation, int estimatedPromptTokens) {
+        private ReActStreamAccumulator(UsageQuotaService.TokenReservationBundle reservation,
+                int estimatedPromptTokens) {
             this.reservation = reservation;
             this.estimatedPromptTokens = estimatedPromptTokens;
         }
@@ -747,8 +763,7 @@ public class LlmProviderRouter {
                 decisions.add(new ToolCallDecision(
                         String.valueOf(item.getOrDefault("id", "")),
                         String.valueOf(function.getOrDefault("name", "")),
-                        arguments
-                ));
+                        arguments));
             }
             return new ReActTurn(
                     content.toString().trim(),
@@ -756,8 +771,7 @@ public class LlmProviderRouter {
                     assistantMessage,
                     finishReason == null || finishReason.isBlank() ? "unknown" : finishReason,
                     promptTokens > 0 ? promptTokens : estimatedPromptTokens,
-                    completionTokens > 0 ? completionTokens : DEFAULT_REACT_MAX_COMPLETION_TOKENS
-            );
+                    completionTokens > 0 ? completionTokens : DEFAULT_REACT_MAX_COMPLETION_TOKENS);
         }
     }
 
@@ -772,15 +786,13 @@ public class LlmProviderRouter {
             String finishReason,
             int promptTokens,
             int completionTokens,
-            int responseChars
-    ) {
+            int responseChars) {
     }
 
     public record ToolCallDecision(
             String id,
             String name,
-            Map<String, Object> arguments
-    ) {
+            Map<String, Object> arguments) {
     }
 
     public record ReActTurn(
@@ -789,8 +801,7 @@ public class LlmProviderRouter {
             Map<String, Object> assistantMessage,
             String finishReason,
             int promptTokens,
-            int completionTokens
-    ) {
+            int completionTokens) {
     }
 
     public static final class StreamHandle {
