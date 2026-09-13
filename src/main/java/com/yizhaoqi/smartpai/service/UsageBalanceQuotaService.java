@@ -42,12 +42,14 @@ public class UsageBalanceQuotaService extends UsageQuotaService {
         int reserveTokens = Math.max(estimatedPromptTokens, 0) + Math.max(maxCompletionTokens, 0);
         reserveTokens = Math.max(reserveTokens, 1);
 
-        // 检查用户余额是否充足
-        if (!userTokenService.hasEnoughLlmTokens(userId, reserveTokens)) {
-            Long balance = userTokenService.getLlmTokenBalance(userId);
-            throw new RateLimitExceededException(
-                    "LLM Token 余额不足，预估需要：" + reserveTokens + ", 当前余额：" + balance, 0);
-        }
+        // ===== 已停用：LLM 余额不足拦截（去掉余额限制，代码保留备查，勿删）=====
+        // // 检查用户余额是否充足
+        // if (!userTokenService.hasEnoughLlmTokens(userId, reserveTokens)) {
+        //     Long balance = userTokenService.getLlmTokenBalance(userId);
+        //     throw new RateLimitExceededException(
+        //             "LLM Token 余额不足，预估需要：" + reserveTokens + ", 当前余额：" + balance, 0);
+        // }
+        // ===== 停用结束 =====
 
         // 用户余额模式下，不需要实际的 Redis 预留操作，只需要返回一个标记对象
         // 实际扣减在 settleReservation 中进行，因此也不需要进行异常的恢复逻辑
@@ -65,12 +67,14 @@ public class UsageBalanceQuotaService extends UsageQuotaService {
 
         int estimatedTokens = Math.max(estimateEmbeddingTokens(texts), 1);
 
-        // 检查用户余额是否充足
-        if (!userTokenService.hasEnoughEmbeddingTokens(userId, estimatedTokens)) {
-            Long balance = userTokenService.getEmbeddingTokenBalance(userId);
-            throw new RateLimitExceededException(
-                    "Embedding Token 余额不足，预估需要：" + estimatedTokens + ", 当前余额：" + balance, 0);
-        }
+        // ===== 已停用：Embedding 余额不足拦截（去掉余额限制，代码保留备查，勿删）=====
+        // // 检查用户余额是否充足
+        // if (!userTokenService.hasEnoughEmbeddingTokens(userId, estimatedTokens)) {
+        //     Long balance = userTokenService.getEmbeddingTokenBalance(userId);
+        //     throw new RateLimitExceededException(
+        //             "Embedding Token 余额不足，预估需要：" + estimatedTokens + ", 当前余额：" + balance, 0);
+        // }
+        // ===== 停用结束 =====
 
         // 用户余额模式下，不需要实际的 Redis 预留操作
         return new TokenReservation(

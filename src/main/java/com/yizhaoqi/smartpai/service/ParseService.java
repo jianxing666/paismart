@@ -125,11 +125,13 @@ public class ParseService {
         checkMemoryThreshold();
 
         try (BufferedInputStream bufferedStream = new BufferedInputStream(fileStream, bufferSize)) {
-            if (isPdfDocument(bufferedStream)) {
-                parsePdfAndSave(fileMd5, bufferedStream, userId, orgTag, isPublic);
-                logger.info("PDF 文件 LiteParse 页级解析和入库完成，fileMd5: {}", fileMd5);
-                return;
-            }
+            // ===== 已停用：PDF 走 LiteParse 页级解析（改用通用 Tika 解析，代码保留备查，勿删）=====
+            // if (isPdfDocument(bufferedStream)) {
+            //     parsePdfAndSave(fileMd5, bufferedStream, userId, orgTag, isPublic);
+            //     logger.info("PDF 文件 LiteParse 页级解析和入库完成，fileMd5: {}", fileMd5);
+            //     return;
+            // }
+            // ===== 停用结束：PDF 交给下方 AutoDetectParser 通用解析 =====
 
             // 创建一个流式处理器，它会在内部处理父块的切分和子块的保存
             StreamingContentHandler handler = new StreamingContentHandler(fileMd5, userId, orgTag, isPublic);
@@ -162,9 +164,11 @@ public class ParseService {
         checkMemoryThreshold();
 
         try (BufferedInputStream bufferedStream = new BufferedInputStream(fileStream, bufferSize)) {
-            if (isPdfDocument(bufferedStream)) {
-                return estimatePdfEmbeddingUsage(bufferedStream);
-            }
+            // ===== 已停用：PDF 走 LiteParse 页级估算（改用通用 Tika 解析，代码保留备查，勿删）=====
+            // if (isPdfDocument(bufferedStream)) {
+            //     return estimatePdfEmbeddingUsage(bufferedStream);
+            // }
+            // ===== 停用结束：PDF 交给下方 AutoDetectParser 通用解析 =====
 
             StreamingEstimateHandler handler = new StreamingEstimateHandler();
             Metadata metadata = new Metadata();

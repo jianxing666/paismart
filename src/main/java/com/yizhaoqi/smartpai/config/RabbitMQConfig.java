@@ -44,31 +44,37 @@ public class RabbitMQConfig {
     }
 
     // ===== Exchanges =====
+    // 主交换机 —— 接收生产者发来的消息
     @Bean
     public DirectExchange fileProcessingExchange() {
         return new DirectExchange(fileProcessingExchangeName);
     }
 
+    // 死信交换机 —— 接收重试耗尽后的失败消息
     @Bean
     public DirectExchange fileProcessingDlxExchange() {
         return new DirectExchange(fileProcessingDlxExchangeName);
     }
 
     // ===== Queues =====
+    // 主队列 —— 绑定死信交换机，消息被 reject 后会转发到 DLX
     @Bean
     public Queue fileProcessingQueue() {
         return QueueBuilder.durable(fileProcessingQueueName)
-                .withArgument("x-dead-letter-exchange", fileProcessingDlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", fileProcessingRoutingKey)
+                .withArgument("x-dead-letter-exchange", fileProcessingDlxExchangeName)// 指定死信交换机 告诉
+                                                                                      // RabbitMQ"如果这条消息被拒绝了，不要丢弃，转发到那个死信交换机"。
+                .withArgument("x-dead-letter-routing-key", fileProcessingRoutingKey)// 死信路由键
                 .build();
     }
 
+    // 死信队列（DLQ）—— 存失败消息，等待人工排查
     @Bean
     public Queue fileProcessingDlq() {
         return QueueBuilder.durable(fileProcessingDlqName).build();
     }
 
     // ===== Bindings =====
+    // 主交换机和主队列绑定，routing key = "file-processing"
     @Bean
     public Binding fileProcessingBinding() {
         return BindingBuilder.bind(fileProcessingQueue())
@@ -76,6 +82,7 @@ public class RabbitMQConfig {
                 .with(fileProcessingRoutingKey);
     }
 
+    // 死信交换机和死信队列绑定，同样的 routing key
     @Bean
     public Binding fileProcessingDlqBinding() {
         return BindingBuilder.bind(fileProcessingDlq())
@@ -85,6 +92,7 @@ public class RabbitMQConfig {
 
     // ===== Message Converter =====
     @Bean
+    // 消息序列化
     public Jackson2JsonMessageConverter jackson2JsonMessageConverter() {
         return new Jackson2JsonMessageConverter();
     }
@@ -92,7 +100,7 @@ public class RabbitMQConfig {
     // ===== RabbitTemplate =====
     @Bean
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory,
-                                         Jackson2JsonMessageConverter messageConverter) {
+            Jackson2JsonMessageConverter messageConverter) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
         template.setMessageConverter(messageConverter);
         return template;
@@ -102,8 +110,8 @@ public class RabbitMQConfig {
     @Bean
     public RetryOperationsInterceptor retryInterceptor() {
         return RetryInterceptorBuilder.stateless()
-                .maxAttempts(5)                               // 1 次初始 + 4 次重试
-                .backOffOptions(3000L, 1.0, 3000L)            // 固定 3 秒退避
+                .maxAttempts(5) // 1 次初始 + 4 次重试
+                .backOffOptions(3000L, 1.0, 3000L) // 固定 3 秒退避
                 .recoverer(new RejectAndDontRequeueRecoverer()) // 重试耗尽后进入 DLX → DLQ
                 .build();
     }
