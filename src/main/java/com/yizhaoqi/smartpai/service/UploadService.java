@@ -81,6 +81,7 @@ public class UploadService {
                 userId);
 
         try {
+            //拿到这个文件的「上传记录」,没有就建一条。它是整个分片上传流程的幂等入口。这部分和synchronized、cocurrenthashmap有关
             FileUpload fileUpload = getOrCreateFileUpload(fileMd5, totalSize, fileName, orgTag, isPublic, userId,
                     fileType);
             logger.debug("检查文件记录是否存在 => fileMd5: {}, fileName: {}, fileType: {}, status: {}", fileMd5, fileName,
@@ -93,6 +94,7 @@ public class UploadService {
                 throw new CustomException("文件已完成合并，不允许继续上传分片", HttpStatus.CONFLICT);
             }
 
+            //根据文件md5和分片顺序 构建存储路径
             String storagePath = buildChunkStoragePath(fileMd5, chunkIndex);
 
             // Redis Bitmap 是上传进度快路径；数据库 + MinIO 对象共同决定分片是否可用于合并。
